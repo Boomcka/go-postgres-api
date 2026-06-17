@@ -1,0 +1,12 @@
+# binaries
+app
+*.exe
+
+# deps
+vendor/
+
+# env
+.env
+
+# OS
+.DS_Store
