@@ -2,9 +2,13 @@ package user
 
 import (
 	"context"
+	"errors"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+var ErrEmailExists = errors.New("email already exists")
 
 type UserRepository interface {
 	Create(ctx context.Context, email string) (int, error)
@@ -28,6 +32,18 @@ func (r *Repo) Create(ctx context.Context, email string) (int, error) {
 		"INSERT INTO users(email) VALUES($1) RETURNING id",
 		email,
 	).Scan(&id)
+
+	if err != nil {
+		var pgErr *pgconn.PgError
+
+		if errors.As(err, &pgErr) {
+			if pgErr.Code == "23505" {
+				return 0, ErrEmailExists
+			}
+		}
+
+		return 0, err
+	}
 
 	return id, err
 }
@@ -66,10 +82,6 @@ func (r *Repo) GetAll(ctx context.Context) ([]User, error) {
 		}
 		users = append(users, u)
 	}
-	if err != nil {
-		return nil, err
-	}
-
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}

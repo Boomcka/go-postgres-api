@@ -87,6 +87,14 @@ func (h *Handler) create(
 	ctx := r.Context()
 	id, err := h.repo.Create(ctx, request.Email)
 	if err != nil {
+		if errors.Is(err, ErrEmailExists) {
+			http.Error(
+				w,
+				err.Error(),
+				http.StatusConflict,
+			)
+			return
+		}
 		http.Error(
 			w,
 			err.Error(),
@@ -94,10 +102,6 @@ func (h *Handler) create(
 		)
 		return
 	}
-
-	w.Header().Set(
-		"Content-Type",
-		"application/json")
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(

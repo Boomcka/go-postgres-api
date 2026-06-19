@@ -1,65 +1,11 @@
 package user
 
 import (
-	"context"
 	"encoding/json"
-	"fmt"
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 )
-
-func TestHandler_CreateUser(t *testing.T) {
-	repo := NewFakeRepo()
-	h := NewHandler(repo)
-
-	body := `{"email":"test@test.com"}`
-
-	req := httptest.NewRequest(
-		"POST",
-		"/users",
-		strings.NewReader(body),
-	)
-
-	w := httptest.NewRecorder()
-
-	h.Users(w, req)
-
-	resp := w.Result()
-
-	if resp.StatusCode != 200 {
-		t.Fatalf("expected 200, got %d", resp.StatusCode)
-	}
-}
-func TestHandler_GetUser(t *testing.T) {
-	ctx, cancel := context.WithTimeout(
-		context.Background(),
-		30*time.Second,
-	)
-
-	defer cancel()
-	repo := NewFakeRepo()
-	h := NewHandler(repo)
-
-	id, _ := repo.Create(ctx, "test@test.com")
-
-	req := httptest.NewRequest(
-		"GET",
-		fmt.Sprintf("/users?id=%d", id),
-		nil,
-	)
-
-	w := httptest.NewRecorder()
-
-	h.Users(w, req)
-
-	resp := w.Result()
-
-	if resp.StatusCode != 200 {
-		t.Fatalf("expected 200, got %d", resp.StatusCode)
-	}
-}
 
 func TestHandler_CreateUser_InvalidEmail(t *testing.T) {
 	repo := NewFakeRepo()
@@ -113,44 +59,37 @@ func TestHandler_CreateUser_InvalidEmail(t *testing.T) {
 		})
 	}
 }
-
-func TestHandler_GetAllUser(t *testing.T) {
-	ctx, cancel := context.WithTimeout(
-		context.Background(),
-		30*time.Second,
-	)
-
-	defer cancel()
+func TestHandler_CreateUser(t *testing.T) {
 	repo := NewFakeRepo()
 	h := NewHandler(repo)
-	tests := []struct {
-		name  string
-		email string
-	}{
-		{name: "User 1", email: "first@test.com"},
-		{name: "User 2", email: "second@test.com"},
-		{name: "User 3", email: "third@test.com"},
-		{name: "User 4", email: "fourth@test.com"},
-		{name: "User 5", email: "fifth@test.com"},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			id, err := repo.Create(ctx, tc.email)
-			if err != nil {
-				t.Fatalf("failed to create user: %v", err)
-			}
-			if id <= 0 {
-				t.Errorf("expected positive ID, got %d", id)
-			}
-		})
+	createUser(t, h, "test@test.com")
+}
+func TestHandler_GetUser(t *testing.T) {
+	repo := NewFakeRepo()
+	h := NewHandler(repo)
+	var user = createUser(t, h, "test@test.com")
+	getUser(t, h, user.ID)
+}
+
+func TestHandler_CreateAndGetUsers(t *testing.T) {
+	repo := NewFakeRepo()
+	h := NewHandler(repo)
+
+	emails := []string{
+		"first@test.com",
+		"second@test.com",
+		"third@test.com",
+		"fourth@test.com",
+		"fifth@test.com",
 	}
 
-	req := httptest.NewRequest(
-		"GET",
-		"/users",
-		nil,
-	)
+	// ACT: create via HTTP, not repo
+	for _, email := range emails {
+		createUser(t, h, email)
+	}
 
+	// ACT: read via HTTP
+	req := httptest.NewRequest("GET", "/users", nil)
 	w := httptest.NewRecorder()
 
 	h.Users(w, req)
@@ -158,13 +97,12 @@ func TestHandler_GetAllUser(t *testing.T) {
 	resp := w.Result()
 
 	var users []User
-
-	err := json.NewDecoder(resp.Body).Decode(&users)
-	if err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(&users); err != nil {
 		t.Fatalf("decode error: %v", err)
 	}
-	if len(users) != len(tests) {
-		t.Errorf("expected %d users in repo, got %d", len(tests), len(users))
-	}
 
+	// ASSERT
+	if len(users) != len(emails) {
+		t.Fatalf("expected %d users, got %d", len(emails), len(users))
+	}
 }

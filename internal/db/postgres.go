@@ -2,31 +2,26 @@ package db
 
 import (
 	"context"
-	"log"
-	"os"
-	"time"
+	"fmt"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func NewPostgresPool() *pgxpool.Pool {
-	dsn := os.Getenv("DB_DSN")
-	if dsn == "" {
-		log.Fatal("DB_DSN is empty")
-	}
+func NewPostgresPool(ctx context.Context, dsn string) (*pgxpool.Pool, error) {
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+	if dsn == "" {
+		return nil, fmt.Errorf("DB_DSN is empty")
+	}
 
 	pool, err := pgxpool.New(ctx, dsn)
 	if err != nil {
-		log.Fatal("failed to create pool:", err)
+		return nil, err
 	}
 
-	// проверка подключения
 	if err := pool.Ping(ctx); err != nil {
-		log.Fatal("failed to ping db:", err)
+		pool.Close()
+		return nil, err
 	}
 
-	return pool
+	return pool, nil
 }

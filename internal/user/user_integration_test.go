@@ -1,54 +1,33 @@
 package user
 
 import (
-	"context"
 	"encoding/json"
+	"fmt"
+	"grps-go-redis-psql/internal/testutil"
+	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
-	"time"
-
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/testcontainers/testcontainers-go"
-	"github.com/testcontainers/testcontainers-go/modules/postgres"
-	"github.com/testcontainers/testcontainers-go/wait"
 )
 
 func TestIntegration_UserCreate(t *testing.T) {
-	pool := setupTestDB(t)
+
+	pool := testutil.SetupPostgres(t)
 	repo := NewRepo(pool)
 	handler := NewHandler(repo)
+	createUser(t, handler, "test@test.com")
+
 	req := httptest.NewRequest(
-		"POST",
-		"/users",
-		strings.NewReader(`{"email":"test@test.com"}`),
-	)
-	w := httptest.NewRecorder()
-	handler.Users(w, req)
-
-	resp := w.Result()
-
-	if resp.StatusCode != 200 {
-		t.Fatalf(
-			"%s: expected %d, got %d",
-			"valid email",
-			200,
-			resp.StatusCode,
-		)
-	}
-
-	req = httptest.NewRequest(
 		"GET",
 		"/users",
 		nil,
 	)
 
-	w = httptest.NewRecorder()
+	w := httptest.NewRecorder()
 
 	handler.Users(w, req)
 
-	resp = w.Result()
+	resp := w.Result()
 
 	if resp.StatusCode != 200 {
 		t.Fatalf(
@@ -73,75 +52,28 @@ func TestIntegration_UserCreate(t *testing.T) {
 	}
 }
 
-func setupTestDB(t *testing.T) *pgxpool.Pool {
+func TestIntegration_DuplicateEmail(t *testing.T) {
+	pool := testutil.SetupPostgres(t)
+	repo := NewRepo(pool)
+	handler := NewHandler(repo)
+	createUser(t, handler, "test@emal.com")
+	email := "test@emal.com"
 	t.Helper()
-
-	ctx, cancel := context.WithTimeout(
-		context.Background(),
-		30*time.Second,
+	body := fmt.Sprintf(`{"email":"%s"}`, email)
+	req := httptest.NewRequest(
+		"POST",
+		"/users",
+		strings.NewReader(body),
 	)
 
-	t.Cleanup(cancel)
-
-	container, err := postgres.Run(
-		ctx,
-		"postgres:15-alpine",
-		postgres.WithDatabase("testdb"),
-		postgres.WithUsername("user"),
-		postgres.WithPassword("password"),
-		testcontainers.WithWaitStrategy(
-			wait.ForListeningPort("5432/tcp").
-				WithStartupTimeout(60*time.Second),
-		),
-	)
-
-	if err != nil {
-		t.Fatalf("start postgres: %v", err)
+	w := httptest.NewRecorder()
+	handler.Users(w, req)
+	resp := w.Result()
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf(
+			"expected 409 got %d",
+			resp.StatusCode,
+		)
 	}
 
-	t.Cleanup(func() {
-		container.Terminate(ctx)
-	})
-
-	connStr, err := container.ConnectionString(
-		ctx,
-		"sslmode=disable",
-	)
-
-	if err != nil {
-		t.Fatalf("connection string: %v", err)
-	}
-
-	pool, err := pgxpool.New(ctx, connStr)
-
-	if err != nil {
-		t.Fatalf("create pool: %v", err)
-	}
-
-	t.Cleanup(func() {
-		pool.Close()
-	})
-
-	if err := pool.Ping(ctx); err != nil {
-		t.Fatalf("ping postgres: %v", err)
-	}
-
-	migration, err := os.ReadFile(
-		"../migrations/001_users.sql",
-	)
-
-	if err != nil {
-		t.Fatalf("read migration: %v", err)
-	}
-
-	_, err = pool.Exec(
-		ctx,
-		string(migration),
-	)
-
-	if err != nil {
-		t.Fatalf("run migration: %v", err)
-	}
-
-	return pool
 }

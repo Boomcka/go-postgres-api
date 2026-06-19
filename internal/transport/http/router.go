@@ -1,10 +1,9 @@
 package http
 
 import (
+	"grps-go-redis-psql/internal/user"
 	"net/http"
 	"strings"
-
-	"grps-go-redis-psql/internal/user"
 )
 
 type Router struct {
