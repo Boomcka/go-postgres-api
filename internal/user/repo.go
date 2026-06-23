@@ -3,6 +3,8 @@ package user
 import (
 	"context"
 	"errors"
+	"log"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -25,13 +27,16 @@ func NewRepo(db *pgxpool.Pool) *Repo {
 }
 
 func (r *Repo) Create(ctx context.Context, email string) (int, error) {
-	var id int
 
+	start := time.Now()
+	var id int
 	err := r.db.QueryRow(
 		ctx,
 		"INSERT INTO users(email) VALUES($1) RETURNING id",
 		email,
 	).Scan(&id)
+	waitTime := time.Since(start)
+	log.Printf("pool wait=%s", waitTime)
 
 	if err != nil {
 		var pgErr *pgconn.PgError

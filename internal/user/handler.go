@@ -23,6 +23,7 @@ type CreateUserRequest struct {
 func NewHandler(repo UserRepository) *Handler {
 	return &Handler{repo: repo}
 }
+
 func (h *Handler) GetByID(w http.ResponseWriter, r *http.Request) {
 	idStr := strings.TrimPrefix(r.URL.Path, "/users/")
 
