@@ -19,6 +19,9 @@ services:
 
     container_name: mini-api
 
+    volumes:
+    - ./internal/config/config.yaml:/app/config/config.yaml
+    
     depends_on:
       - postgres
 
@@ -27,6 +30,7 @@ services:
 
     environment:
       DB_DSN: postgres://app:app@postgres:5432/appdb?sslmode=disable
+      CONFIG_PATH: /app/config/config.yaml
 
 volumes:
   postgres_data:
